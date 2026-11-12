@@ -1,0 +1,80 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-outfit), ui-sans-serif, system-ui, sans-serif;
+  --color-ink: #1f2937;
+  --color-paper: #f4f6fb;
+  --color-card: #ffffff;
+  --color-line: #e7ebf3;
+  --color-pine: #2563eb;
+  --color-muted: #6b7280;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+}
+
+h1.font-serif {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  line-height: 1.2;
+}
+
+input, select, textarea, button {
+  font: inherit;
+}
+
+.data-card:has(table) {
+  padding: 0 !important;
+  overflow: hidden;
+}
+
+.data-card:has(table) > :not(table):not(.overflow-x-auto) {
+  padding: 1.25rem 1.25rem 0;
+}
+
+.data-card table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-card thead tr {
+  background: #2f5bff;
+}
+
+.data-card thead th {
+  color: #fff !important;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 0.9rem 1rem !important;
+}
+
+.data-card tbody td {
+  padding: 0.9rem 1rem;
+  border-top: 1px solid var(--color-line);
+  vertical-align: middle;
+}
+
+.data-card tbody tr:hover {
+  background: #f8fafc;
+}
+
+@keyframes sheet-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.sheet-up {
+  animation: sheet-up 0.22s ease-out;
+}

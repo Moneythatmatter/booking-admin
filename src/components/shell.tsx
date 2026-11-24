@@ -4,10 +4,9 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useState } from "react";
 import { api } from "@/lib/api";
-import { errorMessage } from "@/lib/format";
 import { createClient } from "@/lib/supabase";
 import { IconLogout, navIcons } from "./icons";
-import { Banner, Spinner, initials } from "./ui";
+import { Spinner, initials } from "./ui";
 
 interface ShellState {
   token: string;
@@ -43,7 +42,6 @@ export function Shell({ children }: { children: React.ReactNode }) {
   const [name, setName] = useState("");
   const [userId, setUserId] = useState("");
   const [pageAccess, setPageAccess] = useState<Record<string, "none" | "read" | "write">>({});
-  const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -67,10 +65,14 @@ export function Shell({ children }: { children: React.ReactNode }) {
         setName(me.data.profile.full_name || me.data.profile.email);
         setPageAccess(me.data.page_access ?? {});
         setLoading(false);
-      } catch (loadError) {
+      } catch {
         if (!active) return;
-        setError(errorMessage(loadError));
-        setLoading(false);
+        try {
+          await createClient().auth.signOut();
+        } catch {
+          // The session cannot be used.
+        }
+        router.replace("/login");
       }
     })();
     return () => {
@@ -83,27 +85,10 @@ export function Shell({ children }: { children: React.ReactNode }) {
     router.replace("/login");
   }
 
-  if (loading) {
+  if (loading || !token) {
     return (
       <div className="grid min-h-screen place-items-center">
         <Spinner label="Opening platform admin" />
-      </div>
-    );
-  }
-  if (error || !token) {
-    return (
-      <div className="mx-auto grid min-h-screen max-w-lg place-items-center p-6">
-        <div className="grid w-full gap-4">
-          <Banner>{error || "Sign in required."}</Banner>
-          <button
-            className="rounded-xl bg-pine px-4 py-2.5 text-sm font-semibold text-white"
-            onClick={() => {
-              void signOut();
-            }}
-          >
-            Sign in with a different account
-          </button>
-        </div>
       </div>
     );
   }

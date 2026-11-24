@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useShell } from "@/components/shell";
-import { Banner, Button, Card, Field, Modal, Notice } from "@/components/ui";
+import { Banner, Button, Card, Field, ListFilters, Modal, Notice } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage, money } from "@/lib/format";
 
@@ -23,6 +23,9 @@ const blank = { name: "", description: "", price_monthly: 49, price_yearly: 490,
 export default function PlansPage() {
   const { token } = useShell();
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [draft, setDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
   const [form, setForm] = useState(blank);
   const [editing, setEditing] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -80,6 +83,18 @@ export default function PlansPage() {
         </Button>
       </div>
       {!open && error && <Banner>{error}</Banner>}
+      <ListFilters
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={() => setQ(draft.trim())}
+        placeholder="Search plan name"
+        status={status}
+        onStatusChange={setStatus}
+        statuses={[
+          { value: "active", label: "Active" },
+          { value: "hidden", label: "Hidden" },
+        ]}
+      />
       {message && <Notice>{message}</Notice>}
       <Modal open={open} title={editing ? "Edit plan" : "Add plan"} onClose={() => setOpen(false)}>
         <form onSubmit={save} className="grid gap-4">
@@ -103,7 +118,14 @@ export default function PlansPage() {
         </form>
       </Modal>
       <div className="grid gap-3">
-        {plans.map((plan) => (
+        {plans
+          .filter((plan) => {
+            if (q && !`${plan.name} ${plan.description}`.toLowerCase().includes(q.toLowerCase())) return false;
+            if (status === "active" && !plan.is_active) return false;
+            if (status === "hidden" && plan.is_active) return false;
+            return true;
+          })
+          .map((plan) => (
           <Card key={plan.id} className="flex flex-col justify-between gap-3 md:flex-row md:items-center">
             <div>
               <p className="font-medium">
@@ -135,7 +157,12 @@ export default function PlansPage() {
             </Button>
           </Card>
         ))}
-        {plans.length === 0 && <p className="text-sm text-muted">No plans yet. Run the seed migration or use Add plan.</p>}
+        {plans.filter((plan) => {
+          if (q && !`${plan.name} ${plan.description}`.toLowerCase().includes(q.toLowerCase())) return false;
+          if (status === "active" && !plan.is_active) return false;
+          if (status === "hidden" && plan.is_active) return false;
+          return true;
+        }).length === 0 && <p className="text-sm text-muted">{q || status ? "Nothing matches this search." : "No plans yet. Use Add plan."}</p>}
       </div>
     </div>
   );

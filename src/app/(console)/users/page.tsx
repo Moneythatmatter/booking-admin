@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useShell } from "@/components/shell";
-import { Banner, Button, Card, Empty, Field, Modal, Spinner } from "@/components/ui";
+import { Banner, Button, Card, Empty, Field, ListFilters, Modal, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/format";
 
@@ -35,6 +35,9 @@ const blank = () => Object.fromEntries(pages.map(([key]) => [key, "none"])) as A
 export default function UsersPage() {
   const { token, pageAccess, userId } = useShell();
   const [users, setUsers] = useState<Staff[]>([]);
+  const [draft, setDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [role, setRole] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -96,9 +99,12 @@ export default function UsersPage() {
     }
   }
 
-  const staff = users.filter((user) => user.id !== userId);
-
-  if (loading) return <Spinner label="Loading users" />;
+  const staff = users.filter((user) => user.id !== userId).filter((user) => {
+    const text = `${user.full_name} ${user.email}`.toLowerCase();
+    if (q && !text.includes(q.toLowerCase())) return false;
+    if (role && user.access_role !== role) return false;
+    return true;
+  });
 
   return (
     <div className="grid gap-6">
@@ -110,8 +116,23 @@ export default function UsersPage() {
         {canWrite && <Button type="button" onClick={openCreate}>Add user</Button>}
       </div>
       {!open && error && <Banner>{error}</Banner>}
-      {staff.length === 0 ? (
-        <Empty title="No platform users" body="Add an administrator or a user with page access." />
+      <ListFilters
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={() => setQ(draft.trim())}
+        placeholder="Search name or email"
+        status={role}
+        onStatusChange={setRole}
+        statusLabel="Role"
+        statuses={[
+          { value: "administrator", label: "Administrator" },
+          { value: "user", label: "User" },
+        ]}
+      />
+      {loading ? (
+        <Spinner label="Loading users" />
+      ) : staff.length === 0 ? (
+        <Empty title="No platform users" body={q || role ? "Nothing matches this search." : "Add an administrator or a user with page access."} />
       ) : (
         <Card>
           <ul>

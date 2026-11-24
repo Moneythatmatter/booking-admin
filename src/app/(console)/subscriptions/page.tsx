@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useShell } from "@/components/shell";
-import { Banner, Button, Card, Empty, Field, Modal, Notice, Select, Spinner } from "@/components/ui";
+import { Banner, Button, Card, Empty, Field, ListFilters, Modal, Notice, Select, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage, money } from "@/lib/format";
 
@@ -35,6 +35,10 @@ export default function SubscriptionsPage() {
   const [pending, setPending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
+  const [revision, setRevision] = useState(0);
   const [form, setForm] = useState({
     property_id: "",
     plan_id: "",
@@ -45,27 +49,38 @@ export default function SubscriptionsPage() {
     record_payment: false,
   });
 
-  async function load() {
-    const [subs, planResult, propertyResult] = await Promise.all([
-      api<{ data: { subscriptions: Subscription[] } }>("/api/super/subscriptions?limit=100", { token }),
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "100" });
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    Promise.all([
+      api<{ data: { subscriptions: Subscription[] } }>(`/api/super/subscriptions?${params}`, { token }),
       api<{ data: Plan[] }>("/api/super/plans", { token }),
       api<{ data: { properties: PropertyOption[] } }>("/api/super/properties?limit=100", { token }),
-    ]);
-    setRows(subs.data.subscriptions);
-    setPlans(planResult.data);
-    setProperties(propertyResult.data.properties);
-    setForm((current) => ({
-      ...current,
-      plan_id: current.plan_id || planResult.data[0]?.id || "",
-      property_id: current.property_id || propertyResult.data.properties[0]?.id || "",
-    }));
-  }
-
-  useEffect(() => {
-    load()
-      .catch((loadError) => setError(errorMessage(loadError)))
-      .finally(() => setLoading(false));
-  }, [token]);
+    ])
+      .then(([subs, planResult, propertyResult]) => {
+        if (!active) return;
+        setRows(subs.data.subscriptions);
+        setPlans(planResult.data);
+        setProperties(propertyResult.data.properties);
+        setForm((current) => ({
+          ...current,
+          plan_id: current.plan_id || planResult.data[0]?.id || "",
+          property_id: current.property_id || propertyResult.data.properties[0]?.id || "",
+        }));
+      })
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, q, status, revision]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -76,15 +91,13 @@ export default function SubscriptionsPage() {
       await api("/api/super/subscriptions", { method: "POST", token, body: form });
       setOpen(false);
       setMessage("Subscription saved.");
-      await load();
+      setRevision((value) => value + 1);
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
       setPending(false);
     }
   }
-
-  if (loading) return <Spinner />;
 
   return (
     <div className="grid gap-6">
@@ -138,8 +151,25 @@ export default function SubscriptionsPage() {
           </Button>
         </form>
       </Modal>
-      {rows.length === 0 ? (
-        <Empty title="No subscriptions" body="New hotels receive a Starter trial automatically." />
+      <ListFilters
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={() => setQ(draft.trim())}
+        placeholder="Search hotel or plan"
+        status={status}
+        onStatusChange={setStatus}
+        statuses={[
+          { value: "trialing", label: "Trialing" },
+          { value: "active", label: "Active" },
+          { value: "past_due", label: "Past due" },
+          { value: "cancelled", label: "Cancelled" },
+          { value: "expired", label: "Expired" },
+        ]}
+      />
+      {loading ? (
+        <Spinner />
+      ) : rows.length === 0 ? (
+        <Empty title="No subscriptions" body={q || status ? "Nothing matches this search." : "New hotels receive a Starter trial automatically."} />
       ) : (
         <Card>
           <table className="w-full text-left text-sm">

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useShell } from "@/components/shell";
-import { Banner, Button, Card, Empty, Field, Modal, Notice, Spinner } from "@/components/ui";
+import { Banner, Button, Card, Empty, Field, ListFilters, Modal, Notice, Spinner } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/format";
 
@@ -19,7 +19,9 @@ interface Hotelier {
 export default function HoteliersPage() {
   const { token } = useShell();
   const [users, setUsers] = useState<Hotelier[]>([]);
+  const [draft, setDraft] = useState("");
   const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
@@ -27,18 +29,26 @@ export default function HoteliersPage() {
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState({ full_name: "", email: "", password: "", phone: "", property_name: "", city: "", country: "" });
 
-  async function load(query = q) {
-    const params = new URLSearchParams({ limit: "50" });
-    if (query) params.set("q", query);
-    const result = await api<{ data: { users: Hotelier[] } }>(`/api/super/users?${params}`, { token });
-    setUsers(result.data.users);
-  }
-
   useEffect(() => {
-    load()
-      .catch((loadError) => setError(errorMessage(loadError)))
-      .finally(() => setLoading(false));
-  }, [token]);
+    let active = true;
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "50" });
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    api<{ data: { users: Hotelier[] } }>(`/api/super/users?${params}`, { token })
+      .then((result) => {
+        if (active) setUsers(result.data.users);
+      })
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, q, status, message]);
 
   async function create(event: React.FormEvent) {
     event.preventDefault();
@@ -50,15 +60,12 @@ export default function HoteliersPage() {
       setForm({ full_name: "", email: "", password: "", phone: "", property_name: "", city: "", country: "" });
       setOpen(false);
       setMessage("Hotelier created.");
-      await load();
     } catch (saveError) {
       setError(errorMessage(saveError));
     } finally {
       setPending(false);
     }
   }
-
-  if (loading) return <Spinner />;
 
   return (
     <div className="grid gap-6">
@@ -87,20 +94,23 @@ export default function HoteliersPage() {
           </Button>
         </form>
       </Modal>
-      <form
-        className="flex gap-2"
-        onSubmit={(event) => {
-          event.preventDefault();
-          load().catch((loadError) => setError(errorMessage(loadError)));
-        }}
-      >
-        <input className="flex-1 rounded-xl border border-line px-3 py-2 text-sm" placeholder="Search name or email" value={q} onChange={(event) => setQ(event.target.value)} />
-        <Button variant="ghost" type="submit">
-          Search
-        </Button>
-      </form>
-      {users.length === 0 ? (
-        <Empty title="No hoteliers" body="Use Add hotelier to create the first hotel account." />
+      <ListFilters
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={() => setQ(draft.trim())}
+        placeholder="Search name or email"
+        status={status}
+        onStatusChange={setStatus}
+        statuses={[
+          { value: "active", label: "Active" },
+          { value: "suspended", label: "Suspended" },
+          { value: "blocked", label: "Blocked" },
+        ]}
+      />
+      {loading ? (
+        <Spinner />
+      ) : users.length === 0 ? (
+        <Empty title="No hoteliers" body={q || status ? "Nothing matches this search." : "Use Add hotelier to create the first hotel account."} />
       ) : (
         <Card>
           <table className="w-full text-left text-sm">

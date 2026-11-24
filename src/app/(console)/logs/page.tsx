@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useShell } from "@/components/shell";
-import { Card, Empty, Modal, Spinner, initials } from "@/components/ui";
+import { Card, Empty, ListFilters, Modal, Spinner, initials } from "@/components/ui";
 import { api } from "@/lib/api";
 import { errorMessage } from "@/lib/format";
 
@@ -104,18 +104,32 @@ export default function LogsPage() {
   const { token } = useShell();
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [open, setOpen] = useState<LogRow | null>(null);
+  const [draft, setDraft] = useState("");
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    api<{ data: { logs: LogRow[] } }>("/api/super/logs?limit=100", { token })
-      .then((result) => setLogs(result.data.logs))
-      .catch((loadError) => setError(errorMessage(loadError)))
-      .finally(() => setLoading(false));
-  }, [token]);
-
-  if (loading) return <Spinner label="Loading activity" />;
-  if (error) return <p className="text-sm text-red-800">{error}</p>;
+    let active = true;
+    setLoading(true);
+    const params = new URLSearchParams({ limit: "100" });
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    api<{ data: { logs: LogRow[] } }>(`/api/super/logs?${params}`, { token })
+      .then((result) => {
+        if (active) setLogs(result.data.logs);
+      })
+      .catch((loadError) => {
+        if (active) setError(errorMessage(loadError));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [token, q, status]);
 
   const groups: Array<{ label: string; items: LogRow[] }> = [];
   for (const log of logs) {
@@ -136,8 +150,26 @@ export default function LogsPage() {
           {logs.length} {logs.length === 1 ? "event" : "events"}
         </span>
       </div>
-      {logs.length === 0 ? (
-        <Empty title="No activity yet" body="Account, property, booking, and subscription changes are recorded here." />
+      <ListFilters
+        query={draft}
+        onQueryChange={setDraft}
+        onSearch={() => setQ(draft.trim())}
+        placeholder="Search property, person, or change"
+        status={status}
+        onStatusChange={setStatus}
+        statusLabel="Type"
+        statuses={[
+          { value: "Create", label: "Create" },
+          { value: "Update", label: "Update" },
+          { value: "Delete", label: "Delete" },
+          { value: "Cancel", label: "Cancel" },
+        ]}
+      />
+      {error && <p className="text-sm text-red-800">{error}</p>}
+      {loading ? (
+        <Spinner label="Loading activity" />
+      ) : logs.length === 0 ? (
+        <Empty title="No activity yet" body={q || status ? "Nothing matches this search." : "Account, property, booking, and subscription changes are recorded here."} />
       ) : (
         <div className="grid gap-5">
           {groups.map((group) => (
